@@ -21,10 +21,15 @@
     let cachedModels = [];
     const NAI_KEYWORDS = ["nai", "diffusion", "anime", "furry", "novelai"];
 
+    // 图库数据（最新20张）
+    let gallery = [];
+    const MAX_GALLERY = 20;
+
+    // 防重复请求锁
+    let processingMessages = new Set();
+
     // ============ 正则表达式 ============
-    // 格式1: <image>image###关键词###</image>
     const REGEX_IMAGE_TAG_FULL = /<image>image###([\s\S]+?)###<\/image>/g;
-    // 格式2: <image>关键词</image>（排除 image### 格式）
     const REGEX_IMAGE_TAG_SIMPLE = /<image>(?!image###)([\s\S]+?)<\/image>/g;
 
     // ============ 设置存取 ============
@@ -46,6 +51,54 @@
             if (saveSettingsDebounced) saveSettingsDebounced();
         }
         localStorage.setItem(`${extensionName}_settings`, JSON.stringify(settings));
+    }
+
+    // ============ 图库存取 ============
+    function loadGallery() {
+        const saved = localStorage.getItem(`${extensionName}_gallery`);
+        if (saved) {
+            try { gallery = JSON.parse(saved); } catch(e) { gallery = []; }
+        }
+    }
+
+    function saveGallery() {
+        localStorage.setItem(`${extensionName}_gallery`, JSON.stringify(gallery));
+    }
+
+    function addToGallery(url, prompt) {
+        gallery.unshift({
+            url: url,
+            prompt: prompt,
+            timestamp: Date.now()
+        });
+        if (gallery.length > MAX_GALLERY) {
+            gallery = gallery.slice(0, MAX_GALLERY);
+        }
+        saveGallery();
+        renderGallery();
+    }
+
+    function removeFromGallery(index) {
+        gallery.splice(index, 1);
+        saveGallery();
+        renderGallery();
+    }
+
+    function updateGalleryUrl(index, newUrl) {
+        if (gallery[index]) {
+            gallery[index].url = newUrl;
+            gallery[index].timestamp = Date.now();
+            saveGallery();
+            renderGallery();
+        }
+    }
+
+    function updateGalleryPrompt(index, newPrompt) {
+        if (gallery[index]) {
+            gallery[index].prompt = newPrompt;
+            saveGallery();
+            renderGallery();
+        }
     }
 
     // ============ 提示 ============
@@ -103,17 +156,12 @@
     function normalizeApiUrl(url) {
         let u = (url || "").trim().replace(/\/+$/, "");
         if (!u) return "";
-        // 已包含 /v1/chat/completions 就不再补
         if (/\/v1\/chat\/completions\/?$/i.test(u)) return u;
-        // 已包含 /chat/completions 就不再补
         if (/\/chat\/completions\/?$/i.test(u)) return u;
-        // 已包含 /v1 就补 /chat/completions
         if (/\/v1\/?$/i.test(u)) return u.replace(/\/+$/, "") + "/chat/completions";
-        // 否则补全 /v1/chat/completions
         return u + "/v1/chat/completions";
     }
 
-    // ============ 从 API 获取模型列表 ============
     function getModelsUrl() {
         const full = normalizeApiUrl(settings.apiUrl);
         return full.replace(/\/chat\/completions\/?$/i, "/models");
@@ -134,7 +182,7 @@
         }
 
         const btn = document.getElementById("nai-fetch-models-btn");
-        if (btn) btn.disabled = true;
+        if (btn) { btn.disabled = true; btn.classList.add("spinning"); }
 
         const hint = document.getElementById("nai-model-hint");
         if (hint) hint.textContent = "正在获取模型列表...";
@@ -174,11 +222,10 @@
             showError(`获取模型列表失败: ${e.message}`);
             console.error("NAI 获取模型失败:", e);
         } finally {
-            if (btn) btn.disabled = false;
+            if (btn) { btn.disabled = false; btn.classList.remove("spinning"); }
         }
     }
 
-    // ============ 渲染模型下拉框 ============
     function renderModelSelect() {
         const select = document.getElementById("nai-model");
         if (!select) return;
@@ -198,7 +245,6 @@
         }
     }
 
-    // ============ 获取当前模型 ============
     function getActiveModel() {
         const select = document.getElementById("nai-model");
         if (select && select.value) return select.value;
@@ -263,14 +309,12 @@
                         const choice = data.choices?.[0];
                         if (!choice) continue;
 
-                        // 解析进度
                         const reasoning = choice.delta?.reasoning_content;
                         if (reasoning) {
                             const m = reasoning.match(/进度\s*(\d+)%/);
                             if (m) showProgress(reasoning, parseInt(m[1], 10));
                         }
 
-                        // 提取图片 URL
                         const content = choice.delta?.content;
                         if (content) {
                             const urlMatch = content.match(/https?:\/\/[^\s"'\n]+\.(?:png|jpg|jpeg|webp)/i);
@@ -309,6 +353,7 @@
 
         if (imageUrl) {
             displayImage(imageUrl);
+            addToGallery(imageUrl, prompt.trim());
             if (settings.autoInsert) {
                 await insertImageToChat(imageUrl);
             }
@@ -317,44 +362,58 @@
         if (btn) btn.disabled = false;
     }
 
-    // ============ 自动检测标签并生成 ============
+    // ============ 自动检测标签并生成（带防重复锁） ============
     async function processImageTags(messageIndex) {
-        const ctx = getContext ? getContext() : null;
-        if (!ctx || !ctx.chat) return;
+        // 防重复：如果该消息正在处理中，跳过
+        const lockKey = String(messageIndex);
+        if (processingMessages.has(lockKey)) {
+            console.log(`NAI: 消息 ${messageIndex} 正在处理中，跳过重复请求`);
+            return;
+        }
+        processingMessages.add(lockKey);
 
-        const message = ctx.chat[messageIndex];
-        if (!message || message.is_user) return;
+        try {
+            const ctx = getContext ? getContext() : null;
+            if (!ctx || !ctx.chat) return;
 
-        const text = message.mes || "";
-        const tags = extractImageTags(text);
+            const message = ctx.chat[messageIndex];
+            if (!message || message.is_user) return;
 
-        if (tags.length === 0) return;
+            const text = message.mes || "";
+            const tags = extractImageTags(text);
 
-        showInfo(`检测到 ${tags.length} 个图片标签，开始生成...`);
+            if (tags.length === 0) return;
 
-        let updatedText = text;
+            showInfo(`检测到 ${tags.length} 个图片标签，开始生成...`);
 
-        for (const tag of tags) {
-            console.log(`NAI 自动生成: [格式${tag.format}] ${tag.prompt.substring(0, 50)}...`);
+            let updatedText = text;
 
-            const imageUrl = await generateImage(tag.prompt);
+            for (const tag of tags) {
+                console.log(`NAI 自动生成: [格式${tag.format}] ${tag.prompt.substring(0, 50)}...`);
 
-            if (imageUrl) {
-                const imgMarkdown = `![image](${imageUrl})`;
+                const imageUrl = await generateImage(tag.prompt);
 
-                if (settings.autoCleanTags) {
-                    updatedText = updatedText.replace(tag.full, imgMarkdown);
-                } else {
-                    updatedText = updatedText.replace(tag.full, `${tag.full}\n${imgMarkdown}`);
+                if (imageUrl) {
+                    addToGallery(imageUrl, tag.prompt);
+                    const imgMarkdown = `![image](${imageUrl})`;
+
+                    if (settings.autoCleanTags) {
+                        updatedText = updatedText.replace(tag.full, imgMarkdown);
+                    } else {
+                        updatedText = updatedText.replace(tag.full, `${tag.full}\n${imgMarkdown}`);
+                    }
                 }
             }
-        }
 
-        if (updatedText !== text) {
-            message.mes = updatedText;
-            if (ctx.saveChat) await ctx.saveChat();
-            if (ctx.reloadCurrentChat) await ctx.reloadCurrentChat();
-            showSuccess(`已完成 ${tags.length} 张图片生成并插入`);
+            if (updatedText !== text) {
+                message.mes = updatedText;
+                if (ctx.saveChat) await ctx.saveChat();
+                if (ctx.reloadCurrentChat) await ctx.reloadCurrentChat();
+                showSuccess(`已完成 ${tags.length} 张图片生成并插入`);
+            }
+        } finally {
+            // 延迟释放锁，防止短时间内重复触发
+            setTimeout(() => processingMessages.delete(lockKey), 2000);
         }
     }
 
@@ -382,17 +441,21 @@
     }
 
     // ============ 下载 / 复制 / 插入 ============
-    function downloadImage() {
-        const img = document.getElementById("nai-generated-image");
-        if (!img?.dataset.url) { showError("没有可下载的图片"); return; }
+    function downloadImageUrl(url) {
         const a = document.createElement("a");
-        a.href = img.dataset.url;
+        a.href = url;
         a.download = `nai_${Date.now()}.png`;
         a.target = "_blank";
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         showSuccess("开始下载图片");
+    }
+
+    function downloadImage() {
+        const img = document.getElementById("nai-generated-image");
+        if (!img?.dataset.url) { showError("没有可下载的图片"); return; }
+        downloadImageUrl(img.dataset.url);
     }
 
     function copyImageUrl() {
@@ -427,144 +490,362 @@
         alert(msg);
     }
 
+    // ============ 图库渲染 ============
+    function renderGallery() {
+        const container = document.getElementById("nai-gallery-list");
+        if (!container) return;
+
+        const countEl = document.getElementById("nai-gallery-count");
+        if (countEl) countEl.textContent = gallery.length;
+
+        if (gallery.length === 0) {
+            container.innerHTML = '<div class="nai-gallery-empty">暂无历史图片</div>';
+            return;
+        }
+
+        container.innerHTML = gallery.map((item, index) => {
+            const time = new Date(item.timestamp).toLocaleString('zh-CN', {
+                month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+            const promptShort = (item.prompt || '').substring(0, 60) + (item.prompt.length > 60 ? '...' : '');
+
+            return `
+            <div class="nai-gallery-item" data-index="${index}">
+                <div class="nai-gallery-thumb" data-index="${index}">
+                    <img src="${item.url}" loading="lazy" alt="生成图片">
+                </div>
+                <div class="nai-gallery-info">
+                    <div class="nai-gallery-prompt" title="${(item.prompt || '').replace(/"/g, '&quot;')}">${promptShort}</div>
+                    <div class="nai-gallery-time">${time}</div>
+                </div>
+                <div class="nai-gallery-actions">
+                    <button class="nai-btn-icon nai-gallery-edit" data-index="${index}" title="编辑提示词并重新生成">
+                        <span class="fa-solid fa-pen"></span>
+                    </button>
+                    <button class="nai-btn-icon nai-gallery-download" data-index="${index}" title="下载图片">
+                        <span class="fa-solid fa-download"></span>
+                    </button>
+                    <button class="nai-btn-icon nai-gallery-delete" data-index="${index}" title="删除">
+                        <span class="fa-solid fa-trash"></span>
+                    </button>
+                </div>
+            </div>
+            `;
+        }).join("");
+
+        // 绑定图库事件
+        container.querySelectorAll(".nai-gallery-edit").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                openGalleryEditor(parseInt(btn.dataset.index));
+            });
+        });
+
+        container.querySelectorAll(".nai-gallery-download").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.index);
+                if (gallery[idx]) downloadImageUrl(gallery[idx].url);
+            });
+        });
+
+        container.querySelectorAll(".nai-gallery-delete").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.index);
+                if (confirm("确定删除这张图片记录吗？")) {
+                    removeFromGallery(idx);
+                    showSuccess("已从图库删除");
+                }
+            });
+        });
+
+        container.querySelectorAll(".nai-gallery-thumb").forEach(thumb => {
+            thumb.addEventListener("click", () => {
+                const idx = parseInt(thumb.dataset.index);
+                if (gallery[idx]) {
+                    displayImage(gallery[idx].url);
+                }
+            });
+        });
+    }
+
+    // ============ 图库编辑器 ============
+    function openGalleryEditor(index) {
+        if (!gallery[index]) return;
+
+        const item = gallery[index];
+        const overlay = document.getElementById("nai-gallery-editor-overlay");
+        const img = document.getElementById("nai-editor-image");
+        const textarea = document.getElementById("nai-editor-prompt");
+
+        if (overlay && img && textarea) {
+            img.src = item.url;
+            textarea.value = item.prompt || "";
+            overlay.dataset.index = index;
+            overlay.style.display = "flex";
+        }
+    }
+
+    function closeGalleryEditor() {
+        const overlay = document.getElementById("nai-gallery-editor-overlay");
+        if (overlay) overlay.style.display = "none";
+    }
+
+    async function regenerateFromEditor() {
+        const overlay = document.getElementById("nai-gallery-editor-overlay");
+        if (!overlay) return;
+
+        const index = parseInt(overlay.dataset.index);
+        const textarea = document.getElementById("nai-editor-prompt");
+        const newPrompt = textarea?.value?.trim();
+
+        if (!newPrompt) {
+            showError("提示词不能为空");
+            return;
+        }
+
+        const oldUrl = gallery[index]?.url;
+        const btn = document.getElementById("nai-editor-regenerate");
+        if (btn) btn.disabled = true;
+
+        const newUrl = await generateImage(newPrompt);
+
+        if (newUrl) {
+            // 更新图库
+            updateGalleryUrl(index, newUrl);
+            updateGalleryPrompt(index, newPrompt);
+
+            // 如果旧图片在聊天中存在，替换它
+            if (oldUrl) {
+                await replaceImageInChat(oldUrl, newUrl);
+            }
+
+            // 更新编辑器预览
+            const img = document.getElementById("nai-editor-image");
+            if (img) img.src = newUrl;
+
+            showSuccess("图片已重新生成并替换");
+        }
+
+        if (btn) btn.disabled = false;
+    }
+
+    // ============ 在聊天中替换图片 URL ============
+    async function replaceImageInChat(oldUrl, newUrl) {
+        try {
+            const ctx = getContext ? getContext() : null;
+            if (!ctx || !ctx.chat) return;
+
+            let replaced = false;
+
+            for (const message of ctx.chat) {
+                if (!message || !message.mes) continue;
+
+                if (message.mes.includes(oldUrl)) {
+                    message.mes = message.mes.split(oldUrl).join(newUrl);
+                    replaced = true;
+                }
+
+                if (message.extra?.inline_image === oldUrl) {
+                    message.extra.inline_image = newUrl;
+                    replaced = true;
+                }
+            }
+
+            if (replaced) {
+                if (ctx.saveChat) await ctx.saveChat();
+                if (ctx.reloadCurrentChat) await ctx.reloadCurrentChat();
+                console.log("NAI: 已在聊天中替换图片 URL");
+            }
+        } catch (error) {
+            console.error("替换聊天图片失败:", error);
+        }
+    }
+
     // ============ UI 渲染 ============
     function renderUI() {
         const html = `
         <div id="nai-simple-extension" class="list-group-item">
             <div class="inline-drawer">
                 <div class="inline-drawer-toggle inline-drawer-header">
-                    <b>🎨 NAI 图片生成</b>
+                    <b><span class="nai-header-icon fa-solid fa-palette"></span>NAI 图片生成</b>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
                 <div class="inline-drawer-content">
-                    <div style="padding: 12px;">
+                    <div class="nai-body">
 
-                        <div style="margin-bottom: 12px;">
-                            <label class="checkbox_label">
+                        <div class="nai-section-title"><span class="nai-section-dot"></span>自动化设置</div>
+
+                        <div class="nai-toggle-row">
+                            <div class="nai-toggle-info">
+                                <span class="nai-toggle-label">自动检测标签生成图片</span>
+                                <span class="nai-toggle-desc">AI 回复后自动扫描 &lt;image&gt; 标签并生成图片</span>
+                            </div>
+                            <label class="nai-switch">
                                 <input id="nai-auto-generate" type="checkbox" ${settings.autoGenerate ? "checked" : ""}>
-                                <span>自动检测标签生成图片</span>
+                                <span class="nai-switch-slider"></span>
                             </label>
-                            <small style="display:block;margin-left:20px;opacity:0.6;font-size:11px;">
-                                AI 回复后自动扫描 &lt;image&gt; 标签并生成图片
-                            </small>
                         </div>
 
-                        <div style="margin-bottom: 12px;">
-                            <label class="checkbox_label">
+                        <div class="nai-toggle-row">
+                            <div class="nai-toggle-info">
+                                <span class="nai-toggle-label">生成后清理标签</span>
+                                <span class="nai-toggle-desc">关闭则保留原标签，在标签后添加图片</span>
+                            </div>
+                            <label class="nai-switch">
                                 <input id="nai-auto-clean" type="checkbox" ${settings.autoCleanTags ? "checked" : ""}>
-                                <span>生成后清理标签</span>
+                                <span class="nai-switch-slider"></span>
                             </label>
-                            <small style="display:block;margin-left:20px;opacity:0.6;font-size:11px;">
-                                关闭则保留原标签，在标签后添加图片
-                            </small>
                         </div>
 
-                        <div style="margin-bottom: 12px;">
-                            <label class="checkbox_label">
+                        <div class="nai-toggle-row">
+                            <div class="nai-toggle-info">
+                                <span class="nai-toggle-label">手动生成时自动插入到聊天</span>
+                                <span class="nai-toggle-desc">生成完成后自动将图片插入到最新消息</span>
+                            </div>
+                            <label class="nai-switch">
                                 <input id="nai-auto-insert" type="checkbox" ${settings.autoInsert ? "checked" : ""}>
-                                <span>手动生成时自动插入到聊天</span>
+                                <span class="nai-switch-slider"></span>
                             </label>
                         </div>
 
-                        <hr style="border-color:#333;margin:12px 0;">
+                        <hr class="nai-divider">
 
-                        <div style="margin-bottom: 12px;">
-                            <label for="nai-api-url" style="display:block;margin-bottom:4px;">API 地址</label>
+                        <div class="nai-section-title"><span class="nai-section-dot"></span>接口配置</div>
+
+                        <div class="nai-field">
+                            <label for="nai-api-url" class="nai-label">API 地址</label>
                             <input id="nai-api-url" type="text" class="text_pole" value="${settings.apiUrl}"
-                                   placeholder="https://api.example.com（自动补全 /v1/chat/completions）">
-                            <small style="display:block;margin-top:4px;opacity:0.6;font-size:11px;">只需填基础地址，如 https://api.example.com 或 https://api.example.com/v1</small>
+                                   placeholder="https://api.example.com">
+                            <small class="nai-hint">只需填基础地址，自动补全 /v1/chat/completions</small>
                         </div>
 
-                        <div style="margin-bottom: 12px;">
-                            <label for="nai-api-key" style="display:block;margin-bottom:4px;">API 密钥</label>
+                        <div class="nai-field">
+                            <label for="nai-api-key" class="nai-label">API 密钥</label>
                             <input id="nai-api-key" type="password" class="text_pole" value="${settings.apiKey}"
                                    placeholder="sk-...">
                         </div>
 
-                        <div style="margin-bottom: 12px;">
-                            <label for="nai-model" style="display:block;margin-bottom:4px;">NAI 模型</label>
-                            <div style="display:flex;gap:6px;">
-                                <select id="nai-model" class="text_pole" style="flex:1;">
+                        <div class="nai-field">
+                            <label for="nai-model" class="nai-label">NAI 模型</label>
+                            <div class="nai-model-row">
+                                <select id="nai-model" class="text_pole">
                                     <option value="">请先获取模型列表</option>
                                 </select>
-                                <button id="nai-fetch-models-btn" class="menu_button" style="padding:6px 12px;white-space:nowrap;" title="从 API 获取可用模型列表">
+                                <button id="nai-fetch-models-btn" class="nai-btn-icon" title="从 API 获取可用模型列表">
                                     <span class="fa-solid fa-rotate"></span>
                                     <span>获取</span>
                                 </button>
                             </div>
-                            <small id="nai-model-hint" style="display:block;margin-top:4px;opacity:0.6;font-size:11px;">输入密钥后点击「获取」拉取可用模型</small>
+                            <small id="nai-model-hint" class="nai-hint">输入密钥后点击「获取」拉取可用模型</small>
                         </div>
 
-                        <hr style="border-color:#333;margin:12px 0;">
+                        <hr class="nai-divider">
 
-                        <div style="margin-bottom: 12px;">
-                            <label for="nai-prompt" style="display:block;margin-bottom:4px;">提示词</label>
+                        <div class="nai-section-title"><span class="nai-section-dot"></span>手动生成</div>
+
+                        <div class="nai-field">
+                            <label for="nai-prompt" class="nai-label">提示词</label>
                             <textarea id="nai-prompt" class="text_pole" rows="4"
                                       placeholder="输入提示词，或粘贴含 &lt;image&gt; 标签的文本测试检测..."></textarea>
                         </div>
 
-                        <div style="display:flex;gap:8px;margin-bottom:12px;">
-                            <button id="nai-generate-btn" class="menu_button" style="flex:1;">
+                        <div class="nai-btn-group">
+                            <button id="nai-generate-btn" class="nai-btn nai-btn-primary">
                                 <span class="fa-solid fa-wand-magic-sparkles"></span>
                                 <span>生成图片</span>
                             </button>
-                            <button id="nai-test-tags-btn" class="menu_button" style="flex:1;" title="测试标签检测">
+                            <button id="nai-test-tags-btn" class="nai-btn nai-btn-secondary" title="测试标签检测">
                                 <span class="fa-solid fa-magnifying-glass"></span>
                                 <span>测试标签</span>
                             </button>
                         </div>
 
-                        <div id="nai-progress-container" style="display:none;margin-top:12px;padding:12px;background:#0f1419;border-radius:6px;">
-                            <div id="nai-progress-text" style="color:#e94560;font-size:14px;text-align:center;margin-bottom:8px;">准备中...</div>
-                            <div style="width:100%;height:6px;background:#333;border-radius:3px;overflow:hidden;">
-                                <div id="nai-progress-bar" style="height:100%;background:linear-gradient(90deg,#e94560,#ff6b81);width:0%;transition:width 0.3s;"></div>
+                        <div id="nai-progress-container" style="display:none;">
+                            <div id="nai-progress-text">准备中...</div>
+                            <div class="nai-progress-track">
+                                <div id="nai-progress-bar"></div>
                             </div>
                         </div>
 
-                        <div id="nai-image-container" style="display:none;margin-top:12px;">
-                            <img id="nai-generated-image" src="" style="width:100%;border-radius:6px;margin-bottom:8px;">
-                            <div style="display:flex;gap:8px;">
-                                <button id="nai-download-btn" class="menu_button" style="flex:1;">
+                        <div id="nai-image-container" style="display:none;">
+                            <img id="nai-generated-image" src="">
+                            <div class="nai-image-actions">
+                                <button id="nai-download-btn" class="nai-btn-icon">
                                     <span class="fa-solid fa-download"></span>
                                     <span>下载</span>
                                 </button>
-                                <button id="nai-copy-url-btn" class="menu_button" style="flex:1;">
+                                <button id="nai-copy-url-btn" class="nai-btn-icon">
                                     <span class="fa-solid fa-copy"></span>
                                     <span>复制链接</span>
                                 </button>
-                                <button id="nai-insert-btn" class="menu_button" style="flex:1;">
+                                <button id="nai-insert-btn" class="nai-btn-icon">
                                     <span class="fa-solid fa-paper-plane"></span>
                                     <span>插入聊天</span>
                                 </button>
                             </div>
                         </div>
 
-                        <hr style="border-color:#333;margin:12px 0;">
+                        <hr class="nai-divider">
 
-                        <details style="margin-top:8px;">
-                            <summary style="cursor:pointer;color:#b0b0b0;font-size:12px;">📖 标签格式说明</summary>
-                            <div style="padding:8px 0;font-size:11px;color:#888;line-height:1.6;">
-                                <p><b>格式1（推荐）:</b></p>
-                                <code style="display:block;padding:8px;background:#0f1419;border-radius:4px;margin:4px 0;">
-                                    &lt;image&gt;image###关键词内容###&lt;/image&gt;
-                                </code>
-                                <p>示例:</p>
-                                <code style="display:block;padding:8px;background:#0f1419;border-radius:4px;margin:4px 0;font-size:10px;">
-                                    &lt;image&gt;image###sfw,1girl,from side,close up###&lt;/image&gt;
-                                </code>
-                                <br>
-                                <p><b>格式2（简单）:</b></p>
-                                <code style="display:block;padding:8px;background:#0f1419;border-radius:4px;margin:4px 0;">
-                                    &lt;image&gt;关键词内容&lt;/image&gt;
-                                </code>
-                                <p>示例:</p>
-                                <code style="display:block;padding:8px;background:#0f1419;border-radius:4px;margin:4px 0;font-size:10px;">
-                                    &lt;image&gt;sfw,1girl,from side&lt;/image&gt;
-                                </code>
+                        <div class="nai-section-title">
+                            <span class="nai-section-dot"></span>
+                            <span>图库</span>
+                            <span class="nai-gallery-badge" id="nai-gallery-count">0</span>
+                        </div>
+
+                        <div id="nai-gallery-list" class="nai-gallery-list">
+                            <div class="nai-gallery-empty">暂无历史图片</div>
+                        </div>
+
+                        <hr class="nai-divider">
+
+                        <details>
+                            <summary><span class="fa-solid fa-chevron-right"></span> 标签格式说明</summary>
+                            <div class="nai-tag-guide">
+                                <p>格式1（推荐）</p>
+                                <code>&lt;image&gt;image###关键词内容###&lt;/image&gt;</code>
+                                <p>示例</p>
+                                <code class="nai-code-sm">&lt;image&gt;image###sfw,1girl,from side,close up###&lt;/image&gt;</code>
+                                <p>格式2（简单）</p>
+                                <code>&lt;image&gt;关键词内容&lt;/image&gt;</code>
+                                <p>示例</p>
+                                <code class="nai-code-sm">&lt;image&gt;sfw,1girl,from side&lt;/image&gt;</code>
                             </div>
                         </details>
 
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图库编辑器弹窗 -->
+        <div id="nai-gallery-editor-overlay" class="nai-editor-overlay" style="display:none;">
+            <div class="nai-editor-dialog">
+                <div class="nai-editor-header">
+                    <span class="nai-editor-title">编辑并重新生成</span>
+                    <button id="nai-editor-close" class="nai-btn-icon" title="关闭">
+                        <span class="fa-solid fa-xmark"></span>
+                    </button>
+                </div>
+                <div class="nai-editor-body">
+                    <img id="nai-editor-image" class="nai-editor-image" src="">
+                    <div class="nai-editor-field">
+                        <label class="nai-label">提示词</label>
+                        <textarea id="nai-editor-prompt" class="text_pole" rows="5" placeholder="修改提示词后重新生成..."></textarea>
+                    </div>
+                </div>
+                <div class="nai-editor-footer">
+                    <button id="nai-editor-regenerate" class="nai-btn nai-btn-primary">
+                        <span class="fa-solid fa-arrows-rotate"></span>
+                        <span>重新生成</span>
+                    </button>
+                    <button id="nai-editor-download" class="nai-btn nai-btn-secondary">
+                        <span class="fa-solid fa-download"></span>
+                        <span>下载原图</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -574,6 +855,7 @@
         if (container) {
             container.insertAdjacentHTML("beforeend", html);
             bindEvents();
+            renderGallery();
         }
     }
 
@@ -616,48 +898,47 @@
         document.getElementById("nai-download-btn")?.addEventListener("click", downloadImage);
         document.getElementById("nai-copy-url-btn")?.addEventListener("click", copyImageUrl);
         document.getElementById("nai-insert-btn")?.addEventListener("click", manualInsertImage);
+
+        // 图库编辑器事件
+        document.getElementById("nai-editor-close")?.addEventListener("click", closeGalleryEditor);
+        document.getElementById("nai-editor-regenerate")?.addEventListener("click", regenerateFromEditor);
+        document.getElementById("nai-editor-download")?.addEventListener("click", () => {
+            const overlay = document.getElementById("nai-gallery-editor-overlay");
+            const idx = parseInt(overlay?.dataset.index);
+            if (gallery[idx]) downloadImageUrl(gallery[idx].url);
+        });
+
+        // 点击遮罩关闭
+        document.getElementById("nai-gallery-editor-overlay")?.addEventListener("click", (e) => {
+            if (e.target.id === "nai-gallery-editor-overlay") closeGalleryEditor();
+        });
     }
 
-    // ============ 注册酒馆事件 ============
+    // ============ 注册酒馆事件（只用 MESSAGE_RECEIVED，去掉 GENERATION_ENDED 避免重复） ============
     function registerEvents() {
         if (!eventSource || !event_types) {
             console.warn("NAI Simple: eventSource 未找到，自动生成功能不可用");
             return;
         }
 
-        // 监听 AI 消息生成完成
-        eventSource.on(event_types.MESSAGE_RECEIVED, (messageIndex) => {
-            if (!settings.autoGenerate) return;
+        // 只监听 MESSAGE_RECEIVED，不再监听 GENERATION_ENDED
+        if (event_types.MESSAGE_RECEIVED) {
+            eventSource.on(event_types.MESSAGE_RECEIVED, (messageIndex) => {
+                if (!settings.autoGenerate) return;
 
-            const ctx = getContext ? getContext() : null;
-            if (!ctx || !ctx.chat) return;
+                const ctx = getContext ? getContext() : null;
+                if (!ctx || !ctx.chat) return;
 
-            const idx = typeof messageIndex === "number" ? messageIndex : ctx.chat.length - 1;
-            const message = ctx.chat[idx];
-            if (!message || message.is_user) return;
+                const idx = typeof messageIndex === "number" ? messageIndex : ctx.chat.length - 1;
+                const message = ctx.chat[idx];
+                if (!message || message.is_user) return;
 
-            const text = message.mes || "";
-            if (!extractImageTags(text).length) return;
+                const text = message.mes || "";
+                if (!extractImageTags(text).length) return;
 
-            setTimeout(() => processImageTags(idx), 500);
-        });
-
-        // 监听生成结束事件（备用）
-        eventSource.on(event_types.GENERATION_ENDED, () => {
-            if (!settings.autoGenerate) return;
-
-            const ctx = getContext ? getContext() : null;
-            if (!ctx || !ctx.chat) return;
-
-            const lastIndex = ctx.chat.length - 1;
-            const message = ctx.chat[lastIndex];
-            if (!message || message.is_user) return;
-
-            const text = message.mes || "";
-            if (!extractImageTags(text).length) return;
-
-            setTimeout(() => processImageTags(lastIndex), 500);
-        });
+                setTimeout(() => processImageTags(idx), 500);
+            });
+        }
 
         console.log("NAI Simple: 事件监听已注册");
     }
@@ -685,6 +966,7 @@
 
                 loadSettings();
                 loadCachedModels();
+                loadGallery();
                 renderUI();
                 renderModelSelect();
                 registerEvents();
@@ -694,6 +976,7 @@
                 console.error("NAI Simple 扩展加载失败:", e);
                 loadSettings();
                 loadCachedModels();
+                loadGallery();
                 renderUI();
                 renderModelSelect();
             }

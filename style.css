@@ -1,55 +1,846 @@
-/* NAI 图片生成扩展样式 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Zen+Maru+Gothic:wght@500;700;900&display=swap');
 
+/* ============================================================
+   NAI 图片生成 — 新派和风界面
+   ============================================================ */
+
+:root {
+    --nai-bg: #0a0d14;
+    --nai-surface: #131821;
+    --nai-surface-2: #1a1f2e;
+    --nai-glass: rgba(26, 31, 46, 0.6);
+    --nai-pink: #ff6b9d;
+    --nai-pink-bright: #ff4781;
+    --nai-pink-soft: rgba(255, 107, 157, 0.12);
+    --nai-cyan: #4ecdc4;
+    --nai-text: #e8eaf0;
+    --nai-text-dim: #8b92a8;
+    --nai-text-faint: #565d75;
+    --nai-border: rgba(255, 107, 157, 0.15);
+    --nai-border-strong: rgba(255, 107, 157, 0.3);
+    --nai-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    --nai-glow: 0 0 20px rgba(255, 107, 157, 0.3);
+    --nai-radius: 10px;
+    --nai-font: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --nai-font-display: 'Zen Maru Gothic', 'Noto Sans SC', 'PingFang SC', sans-serif;
+}
+
+/* ---- 主容器 ---- */
 #nai-simple-extension {
-    background: #1a1f26;
-    border: 1px solid #2a2f36;
-    border-radius: 8px;
-    margin-bottom: 12px;
+    background: var(--nai-bg);
+    border: 1px solid var(--nai-border);
+    border-radius: 12px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    box-shadow: var(--nai-shadow);
+    position: relative;
 }
 
-#nai-simple-extension .inline-drawer-content {
-    background: #16181d;
+#nai-simple-extension::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--nai-pink) 30%, var(--nai-cyan) 70%, transparent);
+    z-index: 2;
 }
 
-#nai-simple-extension .text_pole {
-    background: #0f1419;
-    border: 1px solid #2a2f36;
-    color: #e0e0e0;
+#nai-simple-extension .inline-drawer {
+    background: transparent;
 }
 
-#nai-simple-extension .text_pole:focus {
-    border-color: #e94560;
-    outline: none;
-}
-
-#nai-simple-extension .menu_button {
-    background: #e94560;
-    color: white;
-    border: none;
-    padding: 10px 16px;
-    border-radius: 6px;
+/* ---- 折叠头部 ---- */
+#nai-simple-extension .inline-drawer-toggle.inline-drawer-header {
+    background: linear-gradient(135deg, #1a1f2e 0%, #131821 100%);
+    padding: 14px 16px;
     cursor: pointer;
     transition: background 0.3s;
-    font-size: 14px;
-    width: 100%;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    border: none;
+}
+
+#nai-simple-extension .inline-drawer-toggle.inline-drawer-header:hover {
+    background: linear-gradient(135deg, #20283d 0%, #1a1f2e 100%);
+}
+
+#nai-simple-extension .inline-drawer-header b {
+    font-family: var(--nai-font-display);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--nai-text);
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
     gap: 8px;
 }
 
-#nai-simple-extension .menu_button:hover {
-    background: #d63850;
+#nai-simple-extension .inline-drawer-header .nai-header-icon {
+    color: var(--nai-pink);
+    font-size: 16px;
+    filter: drop-shadow(0 0 6px rgba(255, 107, 157, 0.5));
 }
 
-#nai-simple-extension .menu_button:disabled {
-    background: #555;
+#nai-simple-extension .inline-drawer-icon {
+    color: var(--nai-text-dim);
+    transition: transform 0.3s, color 0.3s;
+}
+
+#nai-simple-extension .inline-drawer-toggle.inline-drawer-header:hover .inline-drawer-icon {
+    color: var(--nai-pink);
+}
+
+/* ---- 折叠内容区 ---- */
+#nai-simple-extension .inline-drawer-content {
+    background: var(--nai-bg);
+    padding: 0 !important;
+}
+
+#nai-simple-extension .nai-body {
+    padding: 16px;
+    position: relative;
+}
+
+/* 背景纹理 */
+#nai-simple-extension .nai-body::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: 
+        radial-gradient(circle at 20% 20%, rgba(255, 107, 157, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(78, 205, 196, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+#nai-simple-extension .nai-body > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* ---- 区块标题 ---- */
+.nai-section-title {
+    font-family: var(--nai-font-display);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--nai-text-dim);
+    margin: 16px 0 10px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 107, 157, 0.08);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nai-section-title .nai-section-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--nai-pink);
+    box-shadow: 0 0 8px var(--nai-pink);
+}
+
+.nai-section-title:first-child {
+    margin-top: 0;
+}
+
+/* ---- 标签 ---- */
+#nai-simple-extension label[for^="nai-"],
+.nai-label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--nai-text);
+    letter-spacing: 0.3px;
+}
+
+.nai-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--nai-text-faint);
+    line-height: 1.5;
+    font-weight: 300;
+}
+
+/* ---- 输入框 ---- */
+#nai-simple-extension .text_pole {
+    background: rgba(10, 13, 20, 0.8) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    color: var(--nai-text) !important;
+    border-radius: 8px !important;
+    padding: 9px 12px !important;
+    font-size: 13px !important;
+    font-family: var(--nai-font) !important;
+    transition: all 0.25s ease !important;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#nai-simple-extension .text_pole::placeholder {
+    color: var(--nai-text-faint);
+    font-weight: 300;
+}
+
+#nai-simple-extension .text_pole:focus {
+    border-color: var(--nai-border-strong) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1) !important;
+    background: rgba(10, 13, 20, 1) !important;
+}
+
+#nai-simple-extension textarea.text_pole {
+    resize: vertical;
+    min-height: 70px;
+    line-height: 1.6;
+}
+
+#nai-simple-extension select.text_pole {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ff6b9d' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 12px center !important;
+    padding-right: 32px !important;
+}
+
+#nai-simple-extension select.text_pole option {
+    background: #131821;
+    color: var(--nai-text);
+}
+
+/* ---- 自定义开关 ---- */
+.nai-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--nai-glass);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: all 0.25s ease;
+    backdrop-filter: blur(8px);
+}
+
+.nai-toggle-row:hover {
+    border-color: var(--nai-border);
+    background: rgba(26, 31, 46, 0.8);
+}
+
+.nai-toggle-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.nai-toggle-info .nai-toggle-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--nai-text);
+    display: block;
+}
+
+.nai-toggle-info .nai-toggle-desc {
+    font-size: 11px;
+    color: var(--nai-text-faint);
+    display: block;
+    margin-top: 2px;
+    font-weight: 300;
+    line-height: 1.4;
+}
+
+.nai-switch {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    flex-shrink: 0;
+    margin-left: 12px;
+}
+
+.nai-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.nai-switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 22px;
+    transition: 0.3s;
+}
+
+.nai-switch-slider::before {
+    content: '';
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background: var(--nai-text-dim);
+    border-radius: 50%;
+    transition: 0.3s cubic-beezier(0.4, 0, 0.2, 1);
+}
+
+.nai-switch input:checked + .nai-switch-slider {
+    background: linear-gradient(135deg, var(--nai-pink) 0%, var(--nai-pink-bright) 100%);
+    border-color: transparent;
+    box-shadow: 0 0 12px rgba(255, 107, 157, 0.4);
+}
+
+.nai-switch input:checked + .nai-switch-slider::before {
+    transform: translateX(16px);
+    background: #fff;
+}
+
+/* ---- 按钮 ---- */
+#nai-simple-extension .nai-btn {
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--nai-font);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    transition: all 0.25s ease;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    position: relative;
+    overflow: hidden;
+}
+
+#nai-simple-extension .nai-btn-primary {
+    background: linear-gradient(135deg, var(--nai-pink) 0%, var(--nai-pink-bright) 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(255, 71, 129, 0.3);
+}
+
+#nai-simple-extension .nai-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(255, 71, 129, 0.45);
+}
+
+#nai-simple-extension .nai-btn-primary:active {
+    transform: translateY(0);
+}
+
+#nai-simple-extension .nai-btn-primary:disabled {
+    background: #3a3a3a;
+    color: var(--nai-text-faint);
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+#nai-simple-extension .nai-btn-secondary {
+    background: var(--nai-surface-2);
+    color: var(--nai-text-dim);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#nai-simple-extension .nai-btn-secondary:hover {
+    background: #22293d;
+    color: var(--nai-text);
+    border-color: var(--nai-border);
+}
+
+#nai-simple-extension .nai-btn-icon {
+    background: var(--nai-surface-2);
+    color: var(--nai-text-dim);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-family: var(--nai-font);
+    white-space: nowrap;
+}
+
+#nai-simple-extension .nai-btn-icon:hover {
+    background: #22293d;
+    color: var(--nai-pink);
+    border-color: var(--nai-border);
+}
+
+#nai-simple-extension .nai-btn-icon:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
 }
 
-#nai-generated-image {
-    max-width: 100%;
-    height: auto;
-    display: block;
-    border: 1px solid #2a2f36;
+#nai-simple-extension .nai-btn-icon.spinning .fa-solid {
+    animation: nai-spin 0.8s linear infinite;
 }
+
+@keyframes nai-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ---- 分隔线 ---- */
+.nai-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 107, 157, 0.12) 50%, transparent);
+    margin: 16px 0;
+    border: none;
+}
+
+/* ---- 模型选择行 ---- */
+.nai-model-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.nai-model-row select {
+    flex: 1;
+}
+
+.nai-model-row .nai-btn-icon {
+    flex-shrink: 0;
+}
+
+/* ---- 进度容器 ---- */
+#nai-progress-container {
+    background: linear-gradient(135deg, rgba(255, 107, 157, 0.06) 0%, rgba(78, 205, 196, 0.04) 100%);
+    border: 1px solid var(--nai-border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 14px;
+    backdrop-filter: blur(8px);
+    animation: nai-fade-in 0.3s ease;
+}
+
+@keyframes nai-fade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+#nai-progress-text {
+    color: var(--nai-pink);
+    font-size: 13px;
+    text-align: center;
+    margin-bottom: 10px;
+    font-weight: 500;
+    font-family: var(--nai-font-display);
+    letter-spacing: 0.5px;
+}
+
+.nai-progress-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+#nai-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--nai-pink), var(--nai-pink-bright), var(--nai-cyan));
+    background-size: 200% 100%;
+    width: 0%;
+    border-radius: 3px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: nai-shimmer 2s linear infinite;
+    box-shadow: 0 0 12px rgba(255, 107, 157, 0.5);
+}
+
+@keyframes nai-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ---- 图片展示 ---- */
+#nai-image-container {
+    margin-top: 14px;
+    animation: nai-fade-in 0.4s ease;
+}
+
+#nai-generated-image {
+    width: 100%;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    border: 1px solid var(--nai-border);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 107, 157, 0.1);
+    display: block;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+#nai-generated-image:hover {
+    transform: scale(1.01);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--nai-border-strong);
+}
+
+.nai-image-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.nai-image-actions .nai-btn-icon {
+    flex: 1;
+    justify-content: center;
+}
+
+/* ---- 按钮组 ---- */
+.nai-btn-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.nai-btn-group .nai-btn,
+.nai-btn-group .nai-btn-icon {
+    flex: 1;
+}
+
+/* ---- 标签说明 details ---- */
+#nai-simple-extension details {
+    margin-top: 12px;
+    background: var(--nai-glass);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#nai-simple-extension summary {
+    cursor: pointer;
+    color: var(--nai-text-dim);
+    font-size: 12px;
+    padding: 10px 14px;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s, background 0.2s;
+    user-select: none;
+}
+
+#nai-simple-extension summary::-webkit-details-marker { display: none; }
+#nai-simple-extension summary::marker { display: none; }
+
+#nai-simple-extension summary:hover {
+    color: var(--nai-pink);
+    background: rgba(255, 107, 157, 0.04);
+}
+
+#nai-simple-extension summary .fa-solid {
+    transition: transform 0.3s;
+    font-size: 10px;
+}
+
+#nai-simple-extension details[open] summary .fa-solid {
+    transform: rotate(90deg);
+}
+
+.nai-tag-guide {
+    padding: 0 14px 14px 14px;
+    font-size: 12px;
+    color: var(--nai-text-dim);
+    line-height: 1.7;
+}
+
+.nai-tag-guide p {
+    margin: 8px 0 4px 0;
+    color: var(--nai-text);
+    font-weight: 500;
+}
+
+.nai-tag-guide p:first-child { margin-top: 4px; }
+
+.nai-tag-guide code {
+    display: block;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 107, 157, 0.08);
+    border-radius: 6px;
+    margin: 4px 0;
+    font-size: 11px;
+    color: var(--nai-cyan);
+    font-family: 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.nai-tag-guide code.nai-code-sm {
+    font-size: 10px;
+    color: var(--nai-text-faint);
+}
+
+/* ---- 输入区包裹 ---- */
+.nai-field {
+    margin-bottom: 12px;
+}
+
+.nai-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+/* ---- 响应式微调 ---- */
+@media (max-width: 480px) {
+    #nai-simple-extension .nai-body { padding: 12px; }
+    .nai-image-actions { flex-wrap: wrap; }
+    .nai-image-actions .nai-btn-icon { min-width: calc(50% - 4px); }
+}
+
+/* ============================================================
+   图库样式
+   ============================================================ */
+
+.nai-gallery-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: var(--nai-pink-soft);
+    color: var(--nai-pink);
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 4px;
+    border: 1px solid var(--nai-border);
+}
+
+.nai-gallery-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.nai-gallery-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.nai-gallery-list::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.2);
+    border-radius: 2px;
+}
+
+.nai-gallery-list::-webkit-scrollbar-thumb {
+    background: var(--nai-border-strong);
+    border-radius: 2px;
+}
+
+.nai-gallery-empty {
+    text-align: center;
+    padding: 24px 12px;
+    color: var(--nai-text-faint);
+    font-size: 12px;
+    background: var(--nai-glass);
+    border: 1px dashed rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+}
+
+.nai-gallery-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    background: var(--nai-glass);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    transition: all 0.25s ease;
+    backdrop-filter: blur(8px);
+}
+
+.nai-gallery-item:hover {
+    border-color: var(--nai-border);
+    background: rgba(26, 31, 46, 0.8);
+    transform: translateX(2px);
+}
+
+.nai-gallery-thumb {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid var(--nai-border);
+    position: relative;
+}
+
+.nai-gallery-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.nai-gallery-thumb:hover img {
+    transform: scale(1.1);
+}
+
+.nai-gallery-thumb::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 50%, rgba(255, 107, 157, 0.2) 100%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.nai-gallery-thumb:hover::after {
+    opacity: 1;
+}
+
+.nai-gallery-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.nai-gallery-prompt {
+    font-size: 12px;
+    color: var(--nai-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    line-height: 1.3;
+}
+
+.nai-gallery-time {
+    font-size: 10px;
+    color: var(--nai-text-faint);
+    font-weight: 300;
+}
+
+.nai-gallery-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.nai-gallery-actions .nai-btn-icon {
+    padding: 7px 9px;
+    font-size: 12px;
+    border-radius: 6px;
+}
+
+/* ============================================================
+   图库编辑器弹窗
+   ============================================================ */
+
+.nai-editor-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: nai-fade-in 0.2s ease;
+}
+
+.nai-editor-dialog {
+    background: var(--nai-bg);
+    border: 1px solid var(--nai-border);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 520px;
+    max-height: 85vh;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 107, 157, 0.1);
+    display: flex;
+    flex-direction: column;
+    animation: nai-dialog-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes nai-dialog-in {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.nai-editor-dialog::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--nai-pink) 30%, var(--nai-cyan) 70%, transparent);
+}
+
+.nai-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #1a1f2e 0%, #131821 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.nai-editor-title {
+    font-family: var(--nai-font-display);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nai-text);
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nai-editor-title::before {
+    content: '✎';
+    color: var(--nai-pink);
+    font-size: 15px;
+}
+
+.nai-editor-header .nai-btn-icon {
+    padding: 6px 10px;
+    font-size: 14px;
+}
+
+.nai-editor-body {
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.nai-editor-image {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--nai-border);
+    margin-bottom: 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.nai-editor-field {
+    margin-bottom: 0;
+}
+
+.nai-editor-footer {
+    display: flex;
+    gap: 8px;
+    padding: 14px 16px;
+    background: var(--nai-surface);
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.nai-editor-footer .nai-btn {
+    flex: 1;
+}
+
